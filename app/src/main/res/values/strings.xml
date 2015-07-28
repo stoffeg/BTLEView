@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">BTLEView</string>
-    <string name="hello_world">Hello world!</string>
+    <string name="app_name">BeaconView</string>
+    <string name="hello_world">No Beacons found</string>
     <string name="action_settings">Settings</string>
 </resources>
