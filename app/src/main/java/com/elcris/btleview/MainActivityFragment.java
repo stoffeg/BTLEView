@@ -18,15 +18,20 @@ package com.elcris.btleview;
 
 import android.support.v4.app.Fragment;
 import android.os.Bundle;
+import android.support.v4.app.ListFragment;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.BaseAdapter;
+import android.widget.ListView;
 import android.widget.TextView;
 
 import com.elcris.btleview.R;
 
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
@@ -37,7 +42,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * A placeholder fragment containing a simple view.
  */
-public class MainActivityFragment extends Fragment {
+public class MainActivityFragment extends ListFragment {
     private static final String TAG = "Stoffe";
 
     private TextView mytext;
@@ -51,7 +56,8 @@ public class MainActivityFragment extends Fragment {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        exec.scheduleAtFixedRate(beaconCounter,1,1, TimeUnit.SECONDS);
+        exec.scheduleAtFixedRate(beaconCounter, 1, 1, TimeUnit.SECONDS);
+        setListAdapter(myAdapter);
     }
 
     @Override
@@ -60,12 +66,20 @@ public class MainActivityFragment extends Fragment {
         exec.shutdownNow();
     }
 
+//    @Override
+//    public View onCreateView(LayoutInflater inflater, ViewGroup container,
+//                             Bundle savedInstanceState) {
+//        View view = inflater.inflate(R.layout.fragment_main, container, false);
+//        mytext = (TextView) view.findViewById(R.id.mytext);
+//        return view;
+//    }
+
+
     @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container,
-                             Bundle savedInstanceState) {
-        View view = inflater.inflate(R.layout.fragment_main, container, false);
-        mytext = (TextView) view.findViewById(R.id.mytext);
-        return view;
+    public void onListItemClick(ListView l, View v, int position, long id) {
+        BeaconReading br = (BeaconReading) getListAdapter().getItem(position);
+
+
     }
 
     public void setFoundBeacon(String addr, byte[] adv, int rssi) {
@@ -107,7 +121,7 @@ public class MainActivityFragment extends Fragment {
 
                 @Override
                 public void run() {
-                    mytext.setText(sb.toString());
+                    //mytext.setText(sb.toString());
                 }
             });
 
@@ -140,7 +154,63 @@ public class MainActivityFragment extends Fragment {
                 for(BeaconReading br:delete) {
                     beacons.remove(br);
                 }
+                //Fire Adapter
+                myAdapter.notifyDataSetChanged();
             }
+        }
+    };
+
+    BaseAdapter myAdapter = new BaseAdapter () {
+        @Override
+        public int getCount() {
+            return beacons.size();
+        }
+
+        @Override
+        public BeaconReading getItem(int position) {
+            BeaconReading result = null;
+            if( position < beacons.size() ) {
+                Iterator<BeaconReading> it = beacons.keySet().iterator();
+                for(int i=0 ; it.hasNext() ; i++ ) {
+                    BeaconReading next = it.next();
+                    if( i == position ) return next;
+                }
+            }
+
+            return result;
+        }
+
+        @Override
+        public long getItemId(int position) {
+            return getItem(position).hashCode();
+        }
+
+        @Override
+        public View getView(int position, View convertView, ViewGroup parent) {
+            if( convertView == null ) {
+                LayoutInflater inflater = LayoutInflater.from(MainActivityFragment.this.getActivity());
+                convertView = inflater.inflate(R.layout.beaconlist, parent, false);
+            }
+            //TODO update
+
+            BeaconReading br = getItem(position);
+            if( br != null ) {
+                TextView addr = (TextView) convertView.findViewById(R.id.btaddr);
+                addr.setText(br.addr);
+                TextView id = (TextView) convertView.findViewById(R.id.bid);
+                StringBuilder output = new StringBuilder();
+                for (int i = 0; i < br.beaconId.length(); i+=2) {
+                    String str = br.beaconId.substring(i, i+2);
+                    output.append((char)Integer.parseInt(str, 16));
+                }
+                id.setText(output.toString());
+                TextView maj = (TextView) convertView.findViewById(R.id.major);
+                maj.setText(br.major.toString());
+                TextView min = (TextView) convertView.findViewById(R.id.minor);
+                min.setText(br.minor.toString());
+            }
+
+            return convertView;
         }
     };
 }
