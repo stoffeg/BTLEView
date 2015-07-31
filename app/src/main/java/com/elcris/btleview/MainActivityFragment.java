@@ -91,22 +91,6 @@ public class MainActivityFragment extends ListFragment {
         Log.i(TAG,"ON CLICK");
     }
 
-    public void setFoundBeacon(String addr, byte[] adv, int rssi) {
-        Log.i("Stoffe", "First Fragment SET !!!");
-
-        //System.out.println("Adding = " + br+ " Time - " +  System.currentTimeMillis());
-
-        //getListView().invalidate();
-//        getActivity().runOnUiThread(new Runnable() {
-//
-//            @Override
-//            public void run() {
-//                myAdapter.notifyDataSetChanged();
-//                getListView().invalidate();
-//            }
-//        });
-    }
-
     public void setBeaconManager(BeaconManager manager) {
         //beaconManager = manager;
         manager.getBeaconDiscoveryListener().subscribeOn(Schedulers.newThread()).observeOn(AndroidSchedulers.mainThread()).subscribe(new Action1<BeaconReading>() { //Next

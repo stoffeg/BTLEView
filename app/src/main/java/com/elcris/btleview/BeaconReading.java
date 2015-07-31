@@ -16,9 +16,13 @@
 
 package com.elcris.btleview;
 
+import android.util.Log;
+
 import java.io.Serializable;
+import java.util.Arrays;
 
 class BeaconReading implements Serializable {
+    private static final String TAG = "Stoffe";
     private static final int MAX_BEACON_SIZE = 30;
     String addr;
     String beaconId;
@@ -26,8 +30,18 @@ class BeaconReading implements Serializable {
     Integer minor;
     int rssi;
     long txPow;
-    int latestFreq;
-    int refqCnt;
+
+    //Copy over
+    int latestFreq =1 ;
+    int refqCnt = 1;
+    int freqMax = 1;
+    double prop = 2.0;
+
+    private static final int MAX_DIST_SIZE = 32;
+    private static final int MIN_DIST_SIZE = 5; //Before it does not even try
+    double[] distbuff = null;
+    long dIndex = 0;
+    boolean dFull = false;
 
     public BeaconReading(String addr, byte[] leadv, int rssi) {
         this.addr = addr;
@@ -51,19 +65,67 @@ class BeaconReading implements Serializable {
         return true;
     }
 
+    /**
+ * RSSI = TxPower - 10 * n * lg(d)
+ * n = 2 (in free space)
+ * n = Path-Loss Exponent, ranges from 2.7 to 4.3
+ *
+ * d = 10 ^ ((TxPower - RSSI) / (10 * n))
+ *
+ *  RSSI (dBm) = -10n log10(d) + A
+ */
     public double getDistance() {
 
-    /*
-     * RSSI = TxPower - 10 * n * lg(d)
-     * n = 2 (in free space)
-     * n = Path-Loss Exponent, ranges from 2.7 to 4.3
-     *
-     * d = 10 ^ ((TxPower - RSSI) / (10 * n))
-     *
-     *  RSSI (dBm) = -10n log10(d) + A
-     */
+        double result = 0;
+        if(dFull) {
+            int remove = (int) Math.ceil(freqMax*0.1); // 10%
+            double[] copy = Arrays.copyOf(distbuff,freqMax);
+            Arrays.sort(copy);
+            int j = 0;
+            for(int i = remove ; i < freqMax-remove ; i++) {
+                result += copy[i];
+                j++;
+            }
+            //Log.d(TAG,"J="+j+" Sum="+result+" result/j="+result/j+" freqMax-2r="+(freqMax-(2*remove)));
+            result = result/j;
+        } else {
+            result = Math.pow(10d, ((double) txPow - rssi) / (10 * prop));
+        }
 
-        return Math.pow(10d, ((double) txPow - rssi) / (10 * 2));
+        return result;
+    }
+
+    public void merge(BeaconReading last) {
+        refqCnt = last.refqCnt + 1;
+        latestFreq = last.latestFreq;
+        prop = last.prop;
+        distbuff = last.distbuff;
+        dIndex = ++last.dIndex;
+        dFull = last.dFull;
+
+        if(latestFreq > last.freqMax ) {
+            freqMax = latestFreq;
+            Log.i(TAG, "Updating Max : " + latestFreq + " for " + toString());
+            //Check if time to store dist buffer
+
+            dIndex = 0;
+            dFull = false;
+
+            if( distbuff == null && latestFreq > MIN_DIST_SIZE ) {
+                distbuff = new double[MAX_DIST_SIZE];
+                Log.d(TAG,"Created distbuff array");
+            }
+        }
+        else freqMax = last.freqMax; //just copy
+
+        if( distbuff != null ) { //Add value to index.
+            distbuff[(int)dIndex%freqMax] = Math.pow(10d, ((double) txPow - rssi) / (10 * prop));
+            //Log.d(TAG, "dIndex="+dIndex);
+            if( (!dFull) && (dIndex >= freqMax) ) {
+                dFull = true;
+                Log.d(TAG,"Full distbuff array");
+            }
+        }
     }
 
     public int getFrequency() {
@@ -77,7 +139,7 @@ class BeaconReading implements Serializable {
 
     @Override
     public String toString() {
-        return "BT:"+addr+", id: "+beaconId+", M:"+major+", m:"+minor+", dist:"+getDistance()+", Freq:"+latestFreq;
+        return "BT:"+addr+", id: "+beaconId+", M:"+major+", m:"+minor+", dist:"+getDistance()+", Freq:"+latestFreq+", Max:"+freqMax;
     }
 
     public static String bytesToHex(byte[] in, int start, int stop) {
@@ -103,4 +165,10 @@ class BeaconReading implements Serializable {
         rssi = Integer.MIN_VALUE;
         txPow = Long.MIN_VALUE;
     }
+
+    public void setPropagation(double p) {
+        prop = p;
+    }
+
+    public double getPropagation(){ return prop; }
 }
