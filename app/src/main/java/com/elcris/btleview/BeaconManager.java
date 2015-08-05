@@ -20,6 +20,10 @@ import android.annotation.TargetApi;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothManager;
+import android.bluetooth.le.AdvertiseCallback;
+import android.bluetooth.le.AdvertiseData;
+import android.bluetooth.le.AdvertiseSettings;
+import android.bluetooth.le.BluetoothLeAdvertiser;
 import android.bluetooth.le.BluetoothLeScanner;
 import android.bluetooth.le.ScanCallback;
 import android.bluetooth.le.ScanFilter;
@@ -27,8 +31,11 @@ import android.bluetooth.le.ScanResult;
 import android.bluetooth.le.ScanSettings;
 import android.content.Context;
 import android.os.Build;
+import android.os.ParcelUuid;
 import android.util.Log;
 
+import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -52,6 +59,8 @@ public class BeaconManager {
     private ScheduledExecutorService exec = Executors.newSingleThreadScheduledExecutor();
 
     private ScanCallback sc; //Only Android 5.x
+    private AdvertiseCallback advcb;
+    private BluetoothLeAdvertiser advertiser = null;
 
     private static final String TAG = "Stoffe";
 
@@ -79,6 +88,42 @@ public class BeaconManager {
             //ScanSettings settings = new ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_POWER).build();
             sc = new LollipopScanCallback();
             scanner.startScan(filters,settings,sc);
+
+            //Adv
+            advertiser = adapter.getBluetoothLeAdvertiser();
+            AdvertiseSettings.Builder advSettingsBuilder = new AdvertiseSettings.Builder().
+                    setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH);
+            advSettingsBuilder.setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY);
+            advSettingsBuilder.setConnectable(false);
+            advSettingsBuilder.setTimeout(0);
+
+            AdvertiseData.Builder advDataBuilder = new AdvertiseData.Builder();
+           // { (byte)0x15, (byte)0x02 };
+            ByteBuffer manufacturerData = ByteBuffer.allocate(24);
+            manufacturerData.put((byte)0x02);
+            manufacturerData.put((byte)0x15);
+            //BigInteger bigInt = new BigInteger(ParcelUuid.fromString("12345678-1234-5678-1234-012345678910").toString());
+            //BigInteger bigInt = new BigInteger(ParcelUuid.fromString("12345678123456781234012345678910").toString());
+            //String hexString = bigInt.toString(16);
+            String hexString = "1234567890123456";
+            manufacturerData.put(hexString.getBytes());
+            manufacturerData.putShort((short) 11); //Major
+            manufacturerData.putShort((short) 22); //Minor
+            manufacturerData.put((byte) 0xc5);
+
+            Log.d(TAG, " Raw : " + bytesToHex(manufacturerData.array()));
+            //0x0000 = Ericsson ...
+            advDataBuilder.addManufacturerData(0x004c, manufacturerData.array());
+            advDataBuilder.setIncludeDeviceName(false);
+            advDataBuilder.setIncludeTxPowerLevel(false);
+
+            advcb = new LollipopAdvertiseCallback();
+
+            Log.i(TAG,"Adv = "+advertiser+", sett : "+advSettingsBuilder+", data : "+advDataBuilder+", cb = "+advcb );
+
+
+            advertiser.startAdvertising(advSettingsBuilder.build(), advDataBuilder.build(), advcb);
+
         } else {
             adapter.startLeScan(cb);
         }
@@ -93,6 +138,8 @@ public class BeaconManager {
             BluetoothLeScanner scanner = adapter.getBluetoothLeScanner();
             scanner.stopScan(sc);
 
+            if( advertiser != null ) advertiser.stopAdvertising(advcb);
+
         } else {
             adapter.stopLeScan(cb);
         }
@@ -104,10 +151,11 @@ public class BeaconManager {
     BluetoothAdapter.LeScanCallback cb = new BluetoothAdapter.LeScanCallback() {
         @Override
         public void onLeScan(BluetoothDevice device, int rssi, byte[] scanRecord) {
-            //Log.d(TAG,"4.x Rec = " + bytesToHex(scanRecord));
+            Log.d(TAG,"4.x Rec = " + bytesToHex(scanRecord));
             handleScan(device.getAddress(), scanRecord, rssi);
         }
     };
+
 
     private void handleScan(String address, byte[] scanRecord, int rssi) {
         //System.out.println("RVI Rec = " + bytesToHex(scanRecord));
@@ -255,4 +303,19 @@ public class BeaconManager {
                     result.getScanRecord().getBytes(), result.getRssi());
         }
     };
+
+    @TargetApi(21)
+    class LollipopAdvertiseCallback extends AdvertiseCallback {
+        @Override
+        public void onStartSuccess(AdvertiseSettings settingsInEffect) {
+            Log.e(TAG,"Success :"+settingsInEffect.toString());
+            super.onStartSuccess(settingsInEffect);
+        }
+
+        @Override
+        public void onStartFailure(int errorCode) {
+            Log.e(TAG,"Failed : +"+errorCode);
+            super.onStartFailure(errorCode);
+        }
+    }
 }
