@@ -30,6 +30,7 @@ class BeaconReading implements Serializable {
     Integer minor;
     int rssi;
     long txPow;
+    int adIndex = 1; //If only FF
 
     //Copy over
     int latestFreq =1 ;
@@ -45,12 +46,29 @@ class BeaconReading implements Serializable {
 
     public BeaconReading(String addr, byte[] leadv, int rssi) {
         this.addr = addr;
-        beaconId = bytesToHex(leadv, 9, 25);
+        adIndex = getFFIndex(leadv);
+        beaconId = bytesToHex(leadv, adIndex + 5, adIndex + 21);
         //txPow = Integer.parseInt( new String(leadv, 29, 30) );
-        major = Integer.valueOf( (leadv[26] & 0xff) | ((leadv[25] & 0xff) << 8) );
-        minor = Integer.valueOf( (leadv[28] & 0xff) | ((leadv[27] & 0xff) << 8) );
-        txPow = leadv[29];
+        major = Integer.valueOf( (leadv[adIndex+22] & 0xff) | ((leadv[adIndex+21] & 0xff) << 8) );
+        minor = Integer.valueOf( (leadv[adIndex+24] & 0xff) | ((leadv[adIndex+23] & 0xff) << 8) );
+        txPow = leadv[adIndex+25];
         this.rssi = rssi;
+        //Log.d(TAG, "Created beacon : "+this.toString()+" IS : "+isIBeacon(leadv));
+    }
+
+    private static int getFFIndex(byte[] leadv) {
+        int i = 0;
+
+        while (i < (MAX_DIST_SIZE-1)) {
+            int len = leadv[i];
+            if (leadv[i + 1] == (byte)0xFF) {
+                Log.d(TAG, "Found FF AD structure at index : " + (i + 1) + " len = " + len);
+                return i+1;
+            }
+            else Log.d(TAG, "AD structure type : " + leadv[i + 1] + " len = " + len);
+            i += len +1;
+        }
+        return -1;
     }
 
     @Override
@@ -152,7 +170,11 @@ class BeaconReading implements Serializable {
 
     public static boolean isIBeacon(byte[] adv) {
         if( adv == null || adv.length < MAX_BEACON_SIZE ) return false;
-        if( adv[0] != 0x02 ||  adv[1] != 0x01 || adv[3] != 0x1A) return false;
+        int adi = getFFIndex(adv);
+        if( adi == -1 ) return false;
+        Log.d(TAG, "Comp - "+adv[adi+1]+" "+adv[adi+2]+" "+adv[adi+3]+" "+adv[adi+4]+" ");
+        //This line is for Apple iBeacons, TODO change for Altbeacons
+        if( adv[adi+1] != 0x4C ||  adv[adi+2] != 0x00 || adv[adi+3] != 0x02 || adv[adi+4] != 0x15) return false;
         //TODO add more checks
         return true;
     }
