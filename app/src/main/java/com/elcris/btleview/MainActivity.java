@@ -74,6 +74,23 @@ public class MainActivity extends AppCompatActivity implements MainActivityFragm
         if (id == R.id.action_settings) {
             return true;
         }
+        if (id == R.id.action_startbeacon) {
+            if(beaconManager != null) beaconManager.advertize("1234567890123456",11,22);
+            return true;
+        }
+        if (id == R.id.action_stopbeacon) {
+            if(beaconManager != null) beaconManager.stopAdvert();
+            return true;
+        }
+
+        if (id == R.id.action_startalt) {
+            if(beaconManager != null) beaconManager.startAltBeacon("2F234454-CF6D-4A0F-ADF2-F4911BA9FFA6",1,2);
+            return true;
+        }
+        if (id == R.id.action_stopalt) {
+            if(beaconManager != null) beaconManager.stopAltBeacon();
+            return true;
+        }
 
         return super.onOptionsItemSelected(item);
     }

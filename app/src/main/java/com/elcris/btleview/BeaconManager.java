@@ -34,9 +34,14 @@ import android.os.Build;
 import android.os.ParcelUuid;
 import android.util.Log;
 
+import org.altbeacon.beacon.Beacon;
+import org.altbeacon.beacon.BeaconParser;
+import org.altbeacon.beacon.BeaconTransmitter;
+
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -62,11 +67,16 @@ public class BeaconManager {
     private AdvertiseCallback advcb;
     private BluetoothLeAdvertiser advertiser = null;
 
+    private BeaconTransmitter beaconTransmitter;
+    private Context context;
+
     private static final String TAG = "Stoffe";
 
     public BeaconManager(Context ctx) {
         final BluetoothManager bluetoothManager = (BluetoothManager) ctx.getSystemService(Context.BLUETOOTH_SERVICE);
         adapter = bluetoothManager.getAdapter();
+
+        context = ctx;
 
         Log.i(TAG, "Scan mode : " + adapter.getScanMode());
 
@@ -87,43 +97,7 @@ public class BeaconManager {
             //ScanSettings settings = new ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_BALANCED).build();
             //ScanSettings settings = new ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_POWER).build();
             sc = new LollipopScanCallback();
-            scanner.startScan(filters,settings,sc);
-
-            //Adv
-            advertiser = adapter.getBluetoothLeAdvertiser();
-            AdvertiseSettings.Builder advSettingsBuilder = new AdvertiseSettings.Builder().
-                    setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH);
-            advSettingsBuilder.setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY);
-            advSettingsBuilder.setConnectable(false);
-            advSettingsBuilder.setTimeout(0);
-
-            AdvertiseData.Builder advDataBuilder = new AdvertiseData.Builder();
-           // { (byte)0x15, (byte)0x02 };
-            ByteBuffer manufacturerData = ByteBuffer.allocate(24);
-            manufacturerData.put((byte)0x02);
-            manufacturerData.put((byte)0x15);
-            //BigInteger bigInt = new BigInteger(ParcelUuid.fromString("12345678-1234-5678-1234-012345678910").toString());
-            //BigInteger bigInt = new BigInteger(ParcelUuid.fromString("12345678123456781234012345678910").toString());
-            //String hexString = bigInt.toString(16);
-            String hexString = "1234567890123456";
-            manufacturerData.put(hexString.getBytes());
-            manufacturerData.putShort((short) 11); //Major
-            manufacturerData.putShort((short) 22); //Minor
-            manufacturerData.put((byte) 0xc5);
-
-            Log.d(TAG, " Raw : " + bytesToHex(manufacturerData.array()));
-            //0x0000 = Ericsson ...
-            advDataBuilder.addManufacturerData(0x004c, manufacturerData.array());
-            advDataBuilder.setIncludeDeviceName(false);
-            advDataBuilder.setIncludeTxPowerLevel(false);
-
-            advcb = new LollipopAdvertiseCallback();
-
-            Log.i(TAG,"Adv = "+advertiser+", sett : "+advSettingsBuilder+", data : "+advDataBuilder+", cb = "+advcb );
-
-
-            advertiser.startAdvertising(advSettingsBuilder.build(), advDataBuilder.build(), advcb);
-
+            scanner.startScan(filters, settings, sc);
         } else {
             adapter.startLeScan(cb);
         }
@@ -138,7 +112,7 @@ public class BeaconManager {
             BluetoothLeScanner scanner = adapter.getBluetoothLeScanner();
             scanner.stopScan(sc);
 
-            if( advertiser != null ) advertiser.stopAdvertising(advcb);
+            stopAdvert();
 
         } else {
             adapter.stopLeScan(cb);
@@ -146,6 +120,70 @@ public class BeaconManager {
 
         exec.shutdownNow();
         Log.i(TAG, "Stopped BeaconManager ---");
+    }
+
+    public void advertize(String id, int major, int minor) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            //Adv
+            advertiser = adapter.getBluetoothLeAdvertiser();
+            AdvertiseSettings.Builder advSettingsBuilder = new AdvertiseSettings.Builder().
+                    setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH);
+            advSettingsBuilder.setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY);
+            advSettingsBuilder.setConnectable(false);
+            advSettingsBuilder.setTimeout(0);
+
+            AdvertiseData.Builder advDataBuilder = new AdvertiseData.Builder();
+            // { (byte)0x15, (byte)0x02 };
+            ByteBuffer manufacturerData = ByteBuffer.allocate(24);
+            manufacturerData.put((byte)0x02);
+            manufacturerData.put((byte)0x15);
+            //BigInteger bigInt = new BigInteger(ParcelUuid.fromString("12345678-1234-5678-1234-012345678910").toString());
+            //BigInteger bigInt = new BigInteger(ParcelUuid.fromString("12345678123456781234012345678910").toString());
+            //String hexString = bigInt.toString(16);
+            //String hexString = "1234567890123456";
+            manufacturerData.put(id.getBytes());
+            manufacturerData.putShort((short) major); //Major
+            manufacturerData.putShort((short) minor); //Minor
+            manufacturerData.put((byte) 0xc5);
+
+            Log.d(TAG, " Raw : " + bytesToHex(manufacturerData.array()));
+            //0x0000 = Ericsson ...
+            advDataBuilder.addManufacturerData(0x004c, manufacturerData.array());
+            advDataBuilder.setIncludeDeviceName(false);
+            advDataBuilder.setIncludeTxPowerLevel(false);
+
+            advcb = new LollipopAdvertiseCallback();
+
+            Log.i(TAG,"Adv = "+advertiser+", sett : "+advSettingsBuilder+", data : "+advDataBuilder+", cb = "+advcb );
+
+
+            advertiser.startAdvertising(advSettingsBuilder.build(), advDataBuilder.build(), advcb);
+        } else {
+            Log.w(TAG, "Not supported BLTE ADV!");
+        }
+    }
+
+    public void startAltBeacon(String id, int major, int minor){
+        Beacon beacon = new Beacon.Builder()
+                .setId1(id)
+                .setId2(""+major)
+                .setId3(""+minor)
+                .setManufacturer(0x004c)
+                .setTxPower(-59)
+                .setDataFields(Arrays.asList(new Long[]{0l}))
+                .build();
+        beaconTransmitter = new BeaconTransmitter(context, new BeaconParser().setBeaconLayout("m:2-3=0215,i:4-19,i:20-21,i:22-23,p:24-24"));
+        beaconTransmitter.startAdvertising(beacon);
+    }
+
+    public void stopAdvert() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            if( advertiser != null && advcb != null ) advertiser.stopAdvertising(advcb);
+        }
+    }
+
+    public void stopAltBeacon() {
+        if( beaconTransmitter != null ) beaconTransmitter.stopAdvertising();
     }
 
     BluetoothAdapter.LeScanCallback cb = new BluetoothAdapter.LeScanCallback() {

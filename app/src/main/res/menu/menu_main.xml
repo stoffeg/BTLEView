@@ -3,4 +3,13 @@
     xmlns:tools="http://schemas.android.com/tools" tools:context=".MainActivity">
     <item android:id="@+id/action_settings" android:title="@string/action_settings"
         android:orderInCategory="100" app:showAsAction="never" />
+    <item android:id="@+id/action_startbeacon" android:title="@string/action_startbeacon"
+        android:orderInCategory="101" app:showAsAction="never" />
+    <item android:id="@+id/action_stopbeacon" android:title="@string/action_stopbeacon"
+        android:orderInCategory="102" app:showAsAction="never" />
+    <item android:id="@+id/action_startalt" android:title="@string/action_startalt"
+        android:orderInCategory="103" app:showAsAction="never" />
+    <item android:id="@+id/action_stopalt" android:title="@string/action_stopalt"
+        android:orderInCategory="104" app:showAsAction="never" />
+
 </menu>
