@@ -32,6 +32,7 @@ import android.bluetooth.le.ScanSettings;
 import android.content.Context;
 import android.os.Build;
 import android.os.ParcelUuid;
+import android.os.SystemClock;
 import android.util.Log;
 
 import org.altbeacon.beacon.Beacon;
@@ -82,6 +83,7 @@ public class BeaconManager {
 
         if (!adapter.isEnabled()) {
             adapter.enable();
+            while( !adapter.isEnabled() ) SystemClock.sleep(500);
         }
     }
 
